@@ -1,0 +1,919 @@
+/* ============================================================
+   data-ssml Read Aloud Tool — prototype styles
+   ============================================================ */
+
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-2: #fbfcfd;
+  --ink: #16181d;
+  --ink-2: #4a5160;
+  --ink-3: #767e8e;
+  --line: #dfe3ea;
+  --line-2: #eef1f5;
+  --accent: #1b5fbe;
+  --accent-ink: #ffffff;
+  --accent-soft: #e8f0fd;
+  --warn: #8a5300;
+  --warn-bg: #fff4e0;
+  --err: #a11b1b;
+  --err-bg: #fdeaea;
+  --ok: #1d6b3f;
+  --ok-bg: #e6f5ec;
+
+  /* Read-aloud highlights: chosen so body text keeps >= 7:1 contrast on both. */
+  --hl-sentence: #ffe9a3;
+  --hl-sentence-ink: #1a1600;
+  --hl-word: #ffc21f;
+  --hl-word-ink: #1a1200;
+
+  --radius: 8px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --panel: #1c1f25;
+    --panel-2: #21252c;
+    --ink: #e8eaef;
+    --ink-2: #b3bac7;
+    --ink-3: #8b93a3;
+    --line: #333a45;
+    --line-2: #2a3037;
+    --accent: #6ea8fe;
+    --accent-ink: #0d1117;
+    --accent-soft: #23324a;
+    --warn: #ffc46b;
+    --warn-bg: #3a2c12;
+    --err: #ff9b9b;
+    --err-bg: #3d1e1e;
+    --ok: #8fe0ad;
+    --ok-bg: #17331f;
+
+    --hl-sentence: #4a5f22;
+    --hl-sentence-ink: #f6ffe6;
+    --hl-word: #d8a11a;
+    --hl-word-ink: #1a1200;
+  }
+}
+
+* { box-sizing: border-box; }
+
+/* Several panels set display on elements that also toggle [hidden]. */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+/* Dynamic viewport units keep the layout correct while a mobile browser's
+   toolbars collapse; the percentage above is the fallback. */
+@supports (height: 100dvh) {
+  html, body { height: 100dvh; }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+a { color: var(--accent); }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--line-2);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+
+kbd {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+  background: var(--panel-2);
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ----------------------------- header ----------------------------- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 10px 18px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.titles { min-width: 0; }
+
+.app-header h1 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.version-chip {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.subtitle {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.byline { white-space: nowrap; }
+.byline a { color: var(--ink-3); text-decoration: underline; }
+.byline a:hover { color: var(--accent); }
+
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ----------------------------- layout ----------------------------- */
+
+/*
+   Four layout regimes, chosen by both width and height because a short
+   viewport squeezes a two-row grid just as badly as a narrow one does:
+
+     A   wide + tall     three columns, two rows, filling the viewport
+     A2  wide + short    four columns in a single row
+     B   medium          two columns, the document scrolls
+     C   narrow OR short one panel at a time behind a view switcher
+
+   Regime C's query is mirrored in app.js as SINGLE_VIEW_QUERY so the switcher's
+   tab semantics are applied under exactly the same conditions. Keep them in sync.
+*/
+
+/* --- Regime A: the default --------------------------------------- */
+
+.layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(400px, 1.35fr) minmax(270px, 0.85fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "editor reader voice"
+    "inspector reader voice";
+  gap: 12px;
+  padding: 12px;
+}
+
+.panel-editor    { grid-area: editor; }
+.panel-reader    { grid-area: reader; }
+.panel-voice     { grid-area: voice; }
+.panel-inspector { grid-area: inspector; }
+
+/* Grid and flex items refuse to shrink below their min-content width by
+   default, which is what lets a long transport row or an unbreakable token
+   push the whole page sideways. */
+.layout > .panel { min-width: 0; }
+.panel-head,
+.transport,
+.field,
+.pane { min-width: 0; }
+
+/* --- Regime A2: wide but short — spread out rather than stack ----- */
+
+@media (min-width: 1280px) and (min-height: 560px) and (max-height: 719px) {
+  .layout {
+    grid-template-columns:
+      minmax(240px, 0.9fr) minmax(360px, 1.3fr) minmax(240px, 0.85fr) minmax(240px, 0.95fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "editor reader voice inspector";
+  }
+}
+
+/* --- Regime B: two columns, document scrolls --------------------- */
+
+@media (min-width: 768px) and (max-width: 1179px) and (min-height: 560px) {
+  html, body { height: auto; min-height: 100%; }
+
+  .layout {
+    flex: 0 0 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-template-areas:
+      "reader reader"
+      "editor voice"
+      "inspector inspector";
+    grid-auto-rows: minmax(300px, auto);
+  }
+
+  /* The reader is the point of the tool, so give it the most room. */
+  .panel-reader { min-height: min(52vh, 520px); }
+  .panel-editor,
+  .panel-voice,
+  .panel-inspector { min-height: 340px; }
+}
+
+/* --- View switcher: hidden unless Regime C is in force ------------ */
+
+.view-switch {
+  display: none;
+  gap: 4px;
+  padding: 6px 8px 0;
+  flex: 0 0 auto;
+}
+
+/* --- Regime C: one panel at a time ------------------------------- */
+
+@media (max-width: 767px), (max-height: 559px) {
+  .view-switch { display: flex; }
+
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "single";
+    gap: 0;
+    padding: 8px;
+  }
+
+  .layout > .panel { grid-area: single; }
+
+  /* Only the selected panel is laid out; the rest stay in the DOM so
+     playback, highlighting, and the model keep running behind them. */
+  body[data-view="editor"]    .panel:not(.panel-editor),
+  body[data-view="reader"]    .panel:not(.panel-reader),
+  body[data-view="voice"]     .panel:not(.panel-voice),
+  body[data-view="inspector"] .panel:not(.panel-inspector) {
+    display: none;
+  }
+}
+
+.view-tab {
+  flex: 1 1 0;
+  padding: 8px 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 6px 6px 0 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.view-tab:hover:not([aria-selected="true"]) { background: var(--line-2); border-color: transparent; }
+.view-tab[aria-selected="true"] {
+  background: var(--panel);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.view-tab .tab-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.75;
+  margin-left: 4px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--panel-2);
+  flex: 0 0 auto;
+  /* In a narrow column the controls drop below the heading rather than
+     squeezing the heading onto two lines. */
+  flex-wrap: wrap;
+}
+
+.panel-head h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.panel-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The sample picker takes whatever width is left instead of overflowing. */
+#sel-sample { flex: 1 1 140px; min-width: 0; }
+
+/* ----------------------------- controls --------------------------- */
+
+button {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: default; }
+
+button.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  font-weight: 600;
+  min-width: 92px;
+}
+button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+
+button.ghost { background: transparent; }
+button.small { padding: 3px 8px; font-size: 12px; }
+button .icon { margin-right: 6px; font-size: 11px; }
+
+select, input[type="text"], textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 7px;
+}
+select { font-size: 13px; max-width: 100%; }
+
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+label.inline { font-size: 12px; color: var(--ink-3); }
+
+.badge {
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.badge-quiet { background: var(--line-2); color: var(--ink-3); }
+.badge-ok   { background: var(--ok-bg);   color: var(--ok); }
+.badge-warn { background: var(--warn-bg); color: var(--warn); }
+.badge-err  { background: var(--err-bg);  color: var(--err); }
+
+.hint {
+  margin: 0;
+  padding: 6px 12px 8px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  border-top: 1px solid var(--line-2);
+  flex: 0 0 auto;
+}
+.hint code { font-size: 0.95em; }
+
+/* ----------------------------- editor ----------------------------- */
+
+#html-input {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  resize: none;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  tab-size: 2;
+  background: var(--panel);
+}
+#html-input:focus-visible { outline-offset: -3px; }
+
+/* ----------------------------- reader ----------------------------- */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-2);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.transport-status {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.preview {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px;
+  font-size: 16.5px;
+  line-height: 1.7;
+  cursor: text;
+}
+
+.hl-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+.hl-overlay .hl { position: absolute; border-radius: 3px; }
+.hl-overlay .hl-sentence { background: var(--hl-sentence); mix-blend-mode: multiply; }
+.hl-overlay .hl-word {
+  background: var(--hl-word);
+  mix-blend-mode: multiply;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.35);
+}
+@media (prefers-color-scheme: dark) {
+  .hl-overlay .hl-sentence, .hl-overlay .hl-word { mix-blend-mode: screen; }
+}
+
+#preview-content { position: relative; z-index: 1; }
+
+/* CSS Custom Highlight API path */
+::highlight(ra-sentence) {
+  background-color: var(--hl-sentence);
+  color: var(--hl-sentence-ink);
+}
+::highlight(ra-word) {
+  background-color: var(--hl-word);
+  color: var(--hl-word-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+/* Rendered author content */
+#preview-content > :first-child { margin-top: 0; }
+#preview-content h1 { font-size: 1.5em; }
+#preview-content h2 { font-size: 1.3em; }
+#preview-content h3 { font-size: 1.12em; }
+#preview-content p, #preview-content li { margin: 0.55em 0; }
+#preview-content table { border-collapse: collapse; margin: 0.8em 0; }
+#preview-content th, #preview-content td {
+  border: 1px solid var(--line);
+  padding: 4px 9px;
+  text-align: left;
+}
+#preview-content blockquote {
+  margin: 0.8em 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--line);
+  color: var(--ink-2);
+}
+
+/* A dotted underline marks authored data-ssml, so it is visible while editing. */
+#preview-content [data-ssml] {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
+}
+#preview-content [data-ssml-error] {
+  text-decoration: underline wavy;
+  text-decoration-color: var(--err);
+  background: var(--err-bg);
+}
+
+.render-error {
+  margin: 0 12px 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--err-bg);
+  color: var(--err);
+  font-size: 12.5px;
+  font-family: var(--mono);
+}
+
+/* ----------------------------- voice ------------------------------ */
+
+.panel-voice { overflow-y: auto; }
+
+.field {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-2);
+}
+.field > label, .field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin: 8px 0 4px;
+}
+.field > label:first-child, .field-label:first-child { margin-top: 0; }
+.field select { width: 100%; }
+
+.field-note {
+  margin: 5px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.radios { display: flex; flex-direction: column; gap: 5px; }
+.radios label, .check {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink);
+  font-weight: 400;
+  margin: 0;
+  cursor: pointer;
+}
+.check { margin-top: 6px; }
+.radios input, .check input { margin: 2px 0 0; flex: 0 0 auto; }
+
+output { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+
+.provider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  flex-wrap: wrap;
+}
+
+.probe-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.probe-answers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+/* --------------------------- inspector ---------------------------- */
+
+.tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.tab:hover { background: transparent; color: var(--ink); }
+.tab.is-active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+.inspector-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.pane { padding: 8px 12px 12px; }
+
+.insp-item {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+.insp-item.is-active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.insp-item.is-error { border-color: var(--err); }
+
+.insp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  border-bottom: 1px solid var(--line-2);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  flex-wrap: wrap;
+}
+.insp-head .tagname { font-family: var(--mono); color: var(--accent); }
+
+.insp-body { padding: 7px 9px; font-size: 12px; }
+.insp-body dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+.insp-body dt { color: var(--ink-3); font-size: 11px; white-space: nowrap; }
+.insp-body dd { margin: 0; font-family: var(--mono); font-size: 11.5px; word-break: break-word; }
+
+.insp-body pre {
+  margin: 6px 0 0;
+  padding: 7px 8px;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.insp-note {
+  margin: 4px 0 0;
+  padding-left: 14px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  position: relative;
+}
+.insp-note::before { content: "→"; position: absolute; left: 0; color: var(--ink-3); }
+.insp-msg { font-size: 11.5px; padding: 5px 8px; border-radius: 5px; margin-top: 5px; }
+.insp-msg.err  { background: var(--err-bg);  color: var(--err); }
+.insp-msg.warn { background: var(--warn-bg); color: var(--warn); }
+
+.empty {
+  padding: 18px 12px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 12.5px;
+}
+
+.log-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.log-actions .check { margin-top: 0; }
+
+.log {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.log-line { padding: 2px 6px; border-radius: 4px; white-space: pre-wrap; word-break: break-word; }
+.log-line.error { background: var(--err-bg); color: var(--err); }
+.log-line.warn  { background: var(--warn-bg); color: var(--warn); }
+.log-line.info  { color: var(--ink-2); }
+.log-line.debug { color: var(--ink-3); }
+.log-line .t { color: var(--ink-3); margin-right: 6px; }
+
+/* ---------------------------- dialogs ----------------------------- */
+
+dialog {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0;
+  max-width: min(760px, 92vw);
+  max-height: 86vh;
+  overflow: hidden;
+  display: none;
+}
+dialog[open] { display: flex; flex-direction: column; }
+dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+
+.dlg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--panel-2);
+}
+.dlg-head h2 { margin: 0; font-size: 15px; }
+.dlg-body { padding: 14px; overflow: auto; font-size: 13.5px; }
+.dlg-body h3 { font-size: 13px; margin: 16px 0 6px; }
+.dlg-body ul { margin: 6px 0; padding-left: 20px; }
+.dlg-body li { margin: 3px 0; }
+
+.ref-table { border-collapse: collapse; width: 100%; font-size: 12px; margin-top: 6px; }
+.ref-table th, .ref-table td {
+  border: 1px solid var(--line);
+  padding: 4px 7px;
+  text-align: left;
+  vertical-align: top;
+}
+.ref-table th { background: var(--panel-2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ------------------------ credentials dialog ---------------------- */
+
+.warn-box {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.warn-box code { background: rgba(128, 128, 128, 0.18); }
+
+.creds-form {
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.creds-field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 3px;
+}
+.creds-field input {
+  width: 100%;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.creds-field .field-note { margin-top: 3px; }
+
+.creds-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+.dlg-rule {
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  margin: 18px 0 12px;
+}
+
+.colophon {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+.colophon strong { color: var(--ink-2); }
+
+.test-summary { font-size: 13px; margin-bottom: 10px; font-weight: 600; }
+.test-results { font-family: var(--mono); font-size: 11.5px; }
+.test-group { margin-bottom: 10px; }
+.test-group h4 { margin: 0 0 3px; font-size: 11px; text-transform: uppercase; color: var(--ink-3); letter-spacing: 0.05em; }
+.test-case { padding: 1px 6px; border-radius: 4px; }
+.test-case.pass { color: var(--ok); }
+.test-case.fail { background: var(--err-bg); color: var(--err); }
+
+
+/* ==================================================================
+   Small screens and touch input
+   ================================================================== */
+
+/* Compact chrome so the panel itself keeps as much room as possible. */
+@media (max-width: 767px), (max-height: 559px) {
+  /* The active tab already names the panel, so the heading is duplication.
+     It stays in the DOM as an accessible name source. */
+  .panel-head h2 {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .panel-head { justify-content: flex-start; }
+
+  .app-header { padding: 8px 10px; gap: 8px; }
+  .app-header h1 { font-size: 15px; }
+  .subtitle { font-size: 11.5px; }
+  .header-actions button { font-size: 12px; padding: 5px 9px; }
+
+  .panel { border-radius: var(--radius) var(--radius) 0 0; }
+  .panel-head { padding: 7px 10px; }
+  .pane { padding: 8px 10px 12px; }
+  .field { padding: 10px; }
+  .preview { padding: 12px 14px; }
+  .transport { padding: 8px 10px; }
+  .hint { padding: 6px 10px 8px; }
+
+  /* Anything below 16px makes iOS Safari zoom the page on focus. */
+  select,
+  textarea,
+  input[type="text"],
+  input[type="password"] { font-size: 16px; }
+
+  #html-input { font-size: 15px; line-height: 1.5; }
+}
+
+/* Below the narrowest phones, drop to the essentials. */
+@media (max-width: 400px) {
+  .subtitle { display: none; }
+  .view-tab { font-size: 11.5px; padding: 8px 2px; }
+  .view-tab .tab-count { display: none; }
+  .badge { font-size: 10px; padding: 2px 5px; }
+  .transport-status { margin-left: 0; width: 100%; }
+
+  /* Keep the transport on one row: the icons carry the meaning and each
+     button still has an aria-label. */
+  .transport .btn-text { display: none; }
+  /* Play keeps its label, so it keeps the gap after the icon. */
+  .transport button:not(.primary) .icon { margin-right: 0; }
+  #btn-stop, #btn-prev, #btn-next { padding: 6px 10px; }
+  button.primary { min-width: 76px; }
+
+  /* Which highlighting strategy is in use is diagnostic, not operational. */
+  #badge-hlmode { display: none; }
+}
+
+/* Landscape phones: every fixed row costs a large share of the screen. */
+@media (max-height: 430px) {
+  .app-header { padding: 5px 10px; }
+  .app-header h1 { font-size: 14px; }
+  .subtitle { display: none; }
+  .view-switch { padding: 4px 8px 0; }
+  .view-tab { padding: 6px 4px; min-height: 34px; }
+
+  /* The hints repeat what the controls already convey; the reading area does
+     not. Give the space to the content. */
+  .hint { display: none; }
+  .panel-head { padding: 5px 10px; }
+  .transport { padding: 5px 10px; }
+}
+
+/* Touch targets. Pointer coarse covers phones, tablets, and touch laptops
+   without penalising mouse users on the same breakpoints. */
+@media (pointer: coarse) {
+  button { min-height: 40px; }
+  button.small { min-height: 32px; }
+  .view-tab { min-height: 42px; }
+  .tab { min-height: 36px; }
+
+  select { min-height: 40px; }
+  input[type="range"] { height: 32px; }
+
+  .radios label,
+  .check { padding: 4px 0; }
+  .radios input,
+  .check input { width: 18px; height: 18px; }
+
+  /* Keyboard shortcuts are not actionable without a keyboard. */
+  .kbd-hint { display: none; }
+}
+
+/* Dialogs go full-bleed rather than floating in a tiny window. */
+@media (max-width: 767px), (max-height: 559px) {
+  dialog {
+    max-width: 100%;
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .dlg-body { padding: 12px; }
+  .ref-table { font-size: 11px; }
+  .ref-table th, .ref-table td { padding: 3px 5px; }
+}
+
+/* Wide tables in the help text would otherwise force the dialog to scroll
+   sideways as a whole. */
+.dlg-body .ref-table-wrap { overflow-x: auto; }
+
+/* Respect a reduced-motion preference for the follow-the-reader scroll. */
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}

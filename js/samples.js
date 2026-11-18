@@ -1,0 +1,181 @@
+/*
+ * samples.js
+ * ==========
+ * Authoring samples loaded into the editor. Each one exercises a different
+ * slice of the data-ssml specification so behaviour can be compared across
+ * voices and platforms.
+ */
+(function (root) {
+  'use strict';
+
+  var SAMPLES = {
+
+    assessment: [
+      '<h2>Item 14 — Chemistry</h2>',
+      '',
+      '<p>A student dissolves',
+      '  <span data-ssml=\'{"sub":{"alias":"sodium chloride"}}\'>NaCl</span>',
+      '  in water. The formula unit is',
+      '  <span data-ssml=\'{"say-as":{"interpret-as":"characters"}}\'>NaCl</span>.</p>',
+      '',
+      '<p>The sample mass is',
+      '  <span data-ssml=\'{"say-as":[{"text":"58.44","interpret-as":"cardinal"}]}\'>58.44</span>',
+      '  grams. Record your answer to the',
+      '  <span data-ssml=\'{"say-as":{"interpret-as":"ordinal"}}\'>2</span>',
+      '  decimal place.</p>',
+      '',
+      '<p data-ssml=\'{"prosody":{"rate":"slow"}}\'>',
+      '  Read this instruction carefully before you begin.</p>',
+      '',
+      '<p>Take a',
+      '  <span data-ssml=\'{"break":{"time":"1s"}}\'>breath</span>',
+      '  and then continue.</p>',
+      '',
+      '<p>The correct pronunciation is',
+      '  <span data-ssml=\'{"phoneme":{"ph":"pɪˈkɑːn","alphabet":"ipa"}}\'>pecan</span>,',
+      '  not the other one.</p>',
+      '',
+      '<p>Call the proctor at',
+      '  <span data-ssml=\'{"say-as":{"interpret-as":"telephone"}}\'>617-555-0143</span>',
+      '  before',
+      '  <span data-ssml=\'{"say-as":{"interpret-as":"time"}}\'>14:30</span>',
+      '  on',
+      '  <span data-ssml=\'{"say-as":{"interpret-as":"date"}}\'>2024-07-01</span>.</p>'
+    ].join('\n'),
+
+    spec: [
+      '<h2>Spec format — one object per key</h2>',
+      '<p>Each directive applies to the whole text content of its element.</p>',
+      '',
+      '<ul>',
+      '  <li><span data-ssml=\'{"sub":{"alias":"World Wide Web Consortium"}}\'>W3C</span>',
+      '      publishes the SSML recommendation.</li>',
+      '',
+      '  <li>Postal code',
+      '      <span data-ssml=\'{"say-as":{"interpret-as":"characters"}}\'>63105</span>.</li>',
+      '',
+      '  <li>The value',
+      '      <span data-ssml=\'{"say-as":{"interpret-as":"cardinal"}}\'>1024</span>',
+      '      is two to the tenth.</li>',
+      '',
+      '  <li>Finish by',
+      '      <span data-ssml=\'{"say-as":{"interpret-as":"date"}}\'>2025-11-03</span>.</li>',
+      '',
+      '  <li>Pause after this word<span data-ssml=\'{"break":{"strength":"x-strong"}}\'></span>',
+      '      then keep going.</li>',
+      '',
+      '  <li><span data-ssml=\'{"prosody":{"rate":"x-slow"}}\'>Spoken very slowly.</span></li>',
+      '',
+      '  <li>A <span data-ssml=\'{"phoneme":{"ph":"təˈmeɪ.toʊ","alphabet":"ipa"}}\'>tomato</span>',
+      '      is a fruit.</li>',
+      '</ul>'
+    ].join('\n'),
+
+    extended: [
+      '<h2>Extended format — arrays with substring targeting</h2>',
+      '<p>Found in QTI content and early implementations. Each array item names the',
+      '   <code>text</code> it applies to, so one attribute can cover several targets.</p>',
+      '',
+      '<p data-ssml=\'{"sub":[{"text":"W3C","alias":"World Wide Web Consortium"},{"text":"HTML","alias":"HyperText Markup Language"}]}\'>',
+      '  The W3C maintains the HTML specification, and the W3C also maintains SSML.</p>',
+      '',
+      '<p data-ssml=\'{"break":[{"time":"700","after":"Ready"},{"time":"400","after":"set"}]}\'>',
+      '  Ready set go.</p>',
+      '',
+      '<p data-ssml=\'{"say-as":[{"text":"2023-04-15","interpret-as":"date"}]}\'>',
+      '  The deadline was 2023-04-15 for all submissions.</p>',
+      '',
+      '<p data-ssml=\'{"say-as":[{"text":"42","interpret-as":"cardinal"},{"text":"7","interpret-as":"ordinal"}]}\'>',
+      '  Item 42 appears in the 7 position.</p>'
+    ].join('\n'),
+
+    math: [
+      '<h2>Math and science notation</h2>',
+      '',
+      '<p>Solve for <em>x</em>:',
+      '  <span data-ssml=\'{"sub":{"alias":"two x plus three equals eleven"}}\'>2x + 3 = 11</span>.</p>',
+      '',
+      '<p>The area of a circle is',
+      '  <span data-ssml=\'{"sub":{"alias":"pi times r squared"}}\'>&pi;r&sup2;</span>.</p>',
+      '',
+      '<p>Water is',
+      '  <span data-ssml=\'{"sub":{"alias":"H 2 O"}}\'>H<sub>2</sub>O</span>;',
+      '  carbon dioxide is',
+      '  <span data-ssml=\'{"sub":{"alias":"C O 2"}}\'>CO<sub>2</sub></span>.</p>',
+      '',
+      '<p>Avogadro&rsquo;s number is approximately',
+      '  <span data-ssml=\'{"sub":{"alias":"six point zero two two times ten to the twenty third"}}\'>',
+      '  6.022 &times; 10&sup2;&sup3;</span> per mole.</p>',
+      '',
+      '<p>The interval',
+      '  <span data-ssml=\'{"sub":{"alias":"the open interval from negative one to one"}}\'>(-1, 1)</span>',
+      '  excludes its endpoints.</p>',
+      '',
+      '<table>',
+      '  <caption>Reference values</caption>',
+      '  <tr><th>Symbol</th><th>Value</th></tr>',
+      '  <tr><td><span data-ssml=\'{"say-as":{"interpret-as":"characters"}}\'>pH</span></td>',
+      '      <td><span data-ssml=\'{"say-as":{"interpret-as":"cardinal"}}\'>7.4</span></td></tr>',
+      '</table>'
+    ].join('\n'),
+
+    nesting: [
+      '<h2>Nesting and multi-sentence elements</h2>',
+      '',
+      '<p data-ssml=\'{"prosody":{"rate":"slow"}}\'>',
+      '  This paragraph holds three sentences. The slow rate applies to every one of them.',
+      '  The reader still highlights them one at a time.</p>',
+      '',
+      '<p data-ssml=\'{"prosody":{"rate":"slow"}}\'>An outer directive sets the rate, while',
+      '  <span data-ssml=\'{"say-as":{"interpret-as":"characters"}}\'>ABC</span>',
+      '  overrides the inner span. Directives the inner element omits are inherited.</p>',
+      '',
+      '<p><span data-ssml=\'{"sub":{"alias":"as soon as possible"}}\'>ASAP is a whole-element',
+      '  substitution. It stays in one unit even though it reads as two sentences,',
+      '  because splitting it would change what is spoken.</span></p>',
+      '',
+      '<blockquote data-ssml=\'{"prosody":{"rate":"90%"}}\'>',
+      '  <p>Percentage rates are accepted too. Ninety percent of the default rate.</p>',
+      '</blockquote>'
+    ].join('\n'),
+
+    errors: [
+      '<h2>Error handling</h2>',
+      '<p>Each item below is invalid. The Inspector reports the reason and the reader',
+      '   falls back to speaking the visible text.</p>',
+      '',
+      '<ul>',
+      '  <li>Not JSON at all:',
+      '      <span data-ssml=\'not json\'>alpha</span></li>',
+      '',
+      '  <li>A JSON string instead of an object:',
+      '      <span data-ssml=\'"just a string"\'>bravo</span></li>',
+      '',
+      '  <li><code>sub</code> with no <code>alias</code>:',
+      '      <span data-ssml=\'{"sub":{"text":"W3C"}}\'>charlie</span></li>',
+      '',
+      '  <li><code>say-as</code> with no <code>interpret-as</code>:',
+      '      <span data-ssml=\'{"say-as":{"text":"hello"}}\'>delta</span></li>',
+      '',
+      '  <li><code>phoneme</code> with no <code>ph</code>:',
+      '      <span data-ssml=\'{"phoneme":{"alphabet":"ipa"}}\'>echo</span></li>',
+      '',
+      '  <li>Unparseable break time:',
+      '      <span data-ssml=\'{"break":{"time":"five hundred"}}\'>foxtrot</span></li>',
+      '',
+      '  <li>Unparseable rate:',
+      '      <span data-ssml=\'{"prosody":{"rate":"ludicrous-speed"}}\'>golf</span></li>',
+      '',
+      '  <li>Valid JSON, off-spec value (warning, not an error):',
+      '      <span data-ssml=\'{"say-as":{"interpret-as":"fraction"}}\'>3/4</span></li>',
+      '',
+      '  <li>Unknown keys are ignored:',
+      '      <span data-ssml=\'{"sub":{"alias":"hotel"},"volume":"loud"}\'>hotel code</span></li>',
+      '</ul>'
+    ].join('\n'),
+
+    blank: '<p>Type HTML here.</p>\n'
+  };
+
+  root.Samples = SAMPLES;
+})(window);

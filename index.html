@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>data-ssml Read Aloud Tool 1.0</title>
+<meta name="author" content="mhakkinen@ets.org">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="titles">
+    <h1>
+      data-ssml Read Aloud Tool
+      <!-- The single source for the version; app.js reads it back for the log. -->
+      <span class="version-chip" id="app-version">Version 1.0</span>
+    </h1>
+    <p class="subtitle">
+      Prototype TTS reader for the 1EdTech
+      <a href="https://www.1edtech.org/standards/data-ssml" target="_blank" rel="noopener">
+        <code>data-ssml</code></a> property (specification v1.0, July 2024)
+      <span class="byline">·
+        <a href="mailto:mhakkinen@ets.org" id="app-contact">mhakkinen@ets.org</a></span>
+    </p>
+  </div>
+  <div class="header-actions">
+    <button type="button" id="btn-help" class="ghost">About / Help</button>
+    <button type="button" id="btn-selftest" class="ghost">Run self-test</button>
+  </div>
+</header>
+
+<!-- Shown only when one panel at a time is the sensible layout; see the
+     Regime C media query in app.css. -->
+<nav class="view-switch" id="view-switch" role="tablist" aria-label="Choose panel">
+  <button type="button" role="tab" class="view-tab" data-view="editor"
+    id="tab-view-editor" aria-controls="panel-editor" aria-selected="false">Source</button>
+  <button type="button" role="tab" class="view-tab" data-view="reader"
+    id="tab-view-reader" aria-controls="panel-reader" aria-selected="true">Read</button>
+  <button type="button" role="tab" class="view-tab" data-view="voice"
+    id="tab-view-voice" aria-controls="panel-voice" aria-selected="false">Voice</button>
+  <button type="button" role="tab" class="view-tab" data-view="inspector"
+    id="tab-view-inspector" aria-controls="panel-inspector" aria-selected="false">Inspect</button>
+</nav>
+
+<main class="layout">
+
+  <!-- ============================ EDITOR ============================ -->
+  <section id="panel-editor" class="panel panel-editor" aria-labelledby="h-editor">
+    <div class="panel-head">
+      <h2 id="h-editor">HTML source</h2>
+      <div class="panel-head-actions">
+        <label class="inline" for="sel-sample">Sample</label>
+        <select id="sel-sample">
+          <option value="assessment">Assessment item (all 5 directives)</option>
+          <option value="spec">Spec format only</option>
+          <option value="extended">Extended / QTI format only</option>
+          <option value="math">Math &amp; science notation</option>
+          <option value="nesting">Nesting &amp; multi-sentence</option>
+          <option value="errors">Invalid markup (error handling)</option>
+          <option value="blank">Blank</option>
+        </select>
+        <button type="button" id="btn-format" class="ghost small">Tidy</button>
+      </div>
+    </div>
+
+    <label class="sr-only" for="html-input">HTML source with data-ssml attributes</label>
+    <textarea id="html-input" spellcheck="false" autocomplete="off"
+      aria-describedby="editor-hint"></textarea>
+    <p class="hint" id="editor-hint">
+      Edits render live. Put the JSON in single quotes so its double quotes stay valid:
+      <code>&lt;span data-ssml='{"sub":{"alias":"sodium chloride"}}'&gt;NaCl&lt;/span&gt;</code>
+    </p>
+  </section>
+
+  <!-- ============================ READER ============================ -->
+  <section id="panel-reader" class="panel panel-reader" aria-labelledby="h-reader">
+    <div class="panel-head">
+      <h2 id="h-reader">Rendered content</h2>
+      <div class="panel-head-actions">
+        <span class="badge" id="badge-units">0 sentences</span>
+        <span class="badge" id="badge-ssml">0 data-ssml</span>
+        <span class="badge badge-quiet" id="badge-hlmode">highlight: —</span>
+      </div>
+    </div>
+
+    <!-- Transport ------------------------------------------------------ -->
+    <div class="transport" role="group" aria-label="Read aloud controls">
+      <button type="button" id="btn-play" class="primary">
+        <span class="icon" aria-hidden="true">▶</span><span id="play-label">Play</span>
+      </button>
+      <button type="button" id="btn-stop" disabled aria-label="Stop">
+        <span class="icon" aria-hidden="true">■</span><span class="btn-text">Stop</span>
+      </button>
+      <button type="button" id="btn-prev" disabled title="Previous sentence"
+        aria-label="Previous sentence">
+        <span class="icon" aria-hidden="true">⏮</span><span class="btn-text">Prev</span>
+      </button>
+      <button type="button" id="btn-next" disabled title="Next sentence"
+        aria-label="Next sentence">
+        <span class="icon" aria-hidden="true">⏭</span><span class="btn-text">Next</span>
+      </button>
+      <span class="transport-status" id="status" role="status" aria-live="polite">Ready</span>
+    </div>
+
+    <div class="preview-wrap">
+      <div id="preview" class="preview" tabindex="0"
+        aria-label="Rendered content. Click a sentence to read from there.">
+        <div id="hl-overlay" class="hl-overlay" aria-hidden="true"></div>
+        <div id="preview-content"></div>
+      </div>
+    </div>
+    <p class="hint">
+      Tap or click any sentence in the rendered content to start reading from there.
+      <span class="kbd-hint">Keyboard: <kbd>Space</kbd> play/pause, <kbd>Esc</kbd> stop,
+      <kbd>←</kbd>/<kbd>→</kbd> previous/next sentence (when the reader has focus).</span>
+    </p>
+  </section>
+
+  <!-- ============================ VOICE ============================= -->
+  <section id="panel-voice" class="panel panel-voice" aria-labelledby="h-voice">
+    <div class="panel-head"><h2 id="h-voice">Voice &amp; delivery</h2></div>
+
+    <div class="field">
+      <label for="sel-provider">Speech service</label>
+      <select id="sel-provider"></select>
+      <div class="provider-row">
+        <span class="badge badge-quiet" id="badge-provider">—</span>
+        <button type="button" id="btn-creds" class="small">API key…</button>
+      </div>
+      <p class="field-note" id="provider-note"></p>
+    </div>
+
+    <div class="field">
+      <label for="sel-voice">TTS voice</label>
+      <select id="sel-voice"></select>
+      <p class="field-note" id="voice-note"></p>
+    </div>
+
+    <div class="field">
+      <span class="field-label" id="lbl-mode">SSML delivery</span>
+      <div class="radios" role="radiogroup" aria-labelledby="lbl-mode">
+        <label><input type="radio" name="mode" value="emulate" checked>
+          <span><strong>Emulate</strong> — realize directives client-side, send plain text</span></label>
+        <label><input type="radio" name="mode" value="ssml">
+          <span><strong>Send SSML</strong> — hand the SSML document to the voice</span></label>
+        <label><input type="radio" name="mode" value="plain">
+          <span><strong>Plain text</strong> — apply <code>sub</code> only (AT fallback)</span></label>
+      </div>
+      <p class="field-note" id="mode-note"></p>
+    </div>
+
+    <div class="field ssml-probe">
+      <span class="field-label">Does this voice accept SSML?</span>
+      <p class="field-note">
+        The Web Speech API exposes no capability flag, so this has to be heard.
+        The probe speaks one sentence containing
+        <code>&lt;sub alias="supported"&gt;not supported&lt;/sub&gt;</code>.
+      </p>
+      <div class="probe-row">
+        <button type="button" id="btn-probe">Speak probe</button>
+        <span id="probe-verdict" class="badge badge-quiet">untested</span>
+      </div>
+      <div class="probe-answers" id="probe-answers" hidden>
+        <span>What did you hear?</span>
+        <button type="button" id="btn-probe-yes" class="small">“supported”</button>
+        <button type="button" id="btn-probe-no" class="small">“not supported”</button>
+        <button type="button" id="btn-probe-tags" class="small">tag names read aloud</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="rng-rate">Rate <output id="out-rate">1.00</output></label>
+      <input type="range" id="rng-rate" min="0.5" max="2" step="0.05" value="1">
+
+      <label for="rng-pitch">Pitch <output id="out-pitch">1.00</output></label>
+      <input type="range" id="rng-pitch" min="0.5" max="2" step="0.05" value="1">
+
+      <label for="rng-volume">Volume <output id="out-volume">1.00</output></label>
+      <input type="range" id="rng-volume" min="0" max="1" step="0.05" value="1">
+    </div>
+
+    <div class="field">
+      <span class="field-label">Highlighting &amp; options</span>
+      <label class="check"><input type="checkbox" id="chk-sentence" checked>
+        Highlight sentence</label>
+      <label class="check"><input type="checkbox" id="chk-word" checked>
+        Highlight word (needs engine boundary events)</label>
+      <label class="check"><input type="checkbox" id="chk-follow" checked>
+        Auto-scroll to the spoken sentence</label>
+      <label class="check"><input type="checkbox" id="chk-respell">
+        Approximate <code>phoneme</code> by IPA respelling (lossy)</label>
+    </div>
+  </section>
+
+  <!-- =========================== INSPECTOR ========================== -->
+  <section id="panel-inspector" class="panel panel-inspector" aria-labelledby="h-inspector">
+    <div class="panel-head">
+      <h2 id="h-inspector">Inspector</h2>
+      <div class="panel-head-actions" role="tablist" aria-label="Inspector views">
+        <button type="button" role="tab" class="tab is-active" data-tab="attrs"
+          aria-selected="true" id="tab-attrs">Attributes</button>
+        <button type="button" role="tab" class="tab" data-tab="units"
+          aria-selected="false" id="tab-units">Sentences</button>
+        <button type="button" role="tab" class="tab" data-tab="log"
+          aria-selected="false" id="tab-log">Log</button>
+      </div>
+    </div>
+
+    <div class="inspector-body">
+      <div id="pane-attrs" class="pane" role="tabpanel" aria-labelledby="tab-attrs"></div>
+      <div id="pane-units" class="pane" role="tabpanel" aria-labelledby="tab-units" hidden></div>
+      <div id="pane-log" class="pane" role="tabpanel" aria-labelledby="tab-log" hidden>
+        <div class="log-actions">
+          <button type="button" id="btn-clear-log" class="ghost small">Clear</button>
+          <label class="check"><input type="checkbox" id="chk-debug" checked> Show spoken strings</label>
+        </div>
+        <div id="log" class="log" aria-live="off"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ============================== DIALOGS ============================== -->
+<dialog id="dlg-creds">
+  <div class="dlg-head">
+    <h2 id="creds-title">API credentials</h2>
+    <button type="button" class="ghost small" data-close>Close</button>
+  </div>
+  <div class="dlg-body">
+    <p class="field-note" id="creds-intro"></p>
+
+    <div class="warn-box" id="creds-file-warning" hidden>
+      <span>
+        This page was opened from a <code>file://</code> URL. These services do
+        accept its <code>null</code> origin, so this usually works.
+      </span>
+      <span id="creds-file-caveat"></span>
+      <span>
+        If a request fails anyway, serve the folder over HTTP — from this
+        directory run <code>python3 -m http.server 8000</code> and open
+        <code>http://localhost:8000/</code>.
+      </span>
+    </div>
+
+    <div class="warn-box" id="creds-security"></div>
+
+    <form id="creds-form" class="creds-form"></form>
+
+    <label class="check">
+      <input type="checkbox" id="chk-remember">
+      Remember on this device (<code>localStorage</code>). Otherwise the key is
+      kept only until this tab closes.
+    </label>
+
+    <div class="creds-actions">
+      <button type="button" id="btn-creds-save" class="primary">Save &amp; connect</button>
+      <button type="button" id="btn-creds-test">Test connection</button>
+      <button type="button" id="btn-creds-forget" class="ghost">Forget</button>
+      <span id="creds-status" class="badge badge-quiet" role="status" aria-live="polite">not connected</span>
+    </div>
+
+    <p class="field-note">
+      Credentials are held in this browser and sent only to the provider's own
+      endpoint. Nothing is proxied through a third party.
+    </p>
+  </div>
+</dialog>
+
+<dialog id="dlg-help">
+  <div class="dlg-head">
+    <h2>About this prototype</h2>
+    <button type="button" class="ghost small" data-close>Close</button>
+  </div>
+  <div class="dlg-body">
+    <p>
+      This tool reads HTML aloud while honouring the 1EdTech <code>data-ssml</code>
+      property. Both JSON shapes described in the specification are accepted:
+    </p>
+    <ul>
+      <li><strong>Spec format</strong> — each key is an object and the directive applies to the
+        element's whole text content: <code>{"sub":{"alias":"sodium chloride"}}</code></li>
+      <li><strong>Extended format</strong> — each key is an array and each item targets a
+        substring via <code>text</code>:
+        <code>{"sub":[{"text":"W3C","alias":"World Wide Web Consortium"}]}</code></li>
+    </ul>
+
+    <h3>Supported directives</h3>
+    <div class="ref-table-wrap"><table class="ref-table">
+      <thead><tr><th>Directive</th><th>Spec format</th><th>Emulated how</th></tr></thead>
+      <tbody>
+        <tr><td><code>sub</code></td>
+            <td><code>{"sub":{"alias":"…"}}</code></td>
+            <td>text substitution before synthesis</td></tr>
+        <tr><td><code>break</code></td>
+            <td><code>{"break":{"time":"500ms"}}</code></td>
+            <td>utterance split with a timed silence</td></tr>
+        <tr><td><code>prosody</code></td>
+            <td><code>{"prosody":{"rate":"fast"}}</code></td>
+            <td>utterance <code>rate</code> multiplier</td></tr>
+        <tr><td><code>say-as</code></td>
+            <td><code>{"say-as":{"interpret-as":"characters"}}</code></td>
+            <td>number / date / time / telephone / character expansion</td></tr>
+        <tr><td><code>phoneme</code></td>
+            <td><code>{"phoneme":{"ph":"pɪˈkɑːn","alphabet":"ipa"}}</code></td>
+            <td>no Web Speech equivalent — optional IPA respelling</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>Speech services</h3>
+    <p>
+      No shipping browser accepts SSML through
+      <code>SpeechSynthesisUtterance</code>: markup handed to it is either stripped or
+      spoken as literal tag text, and there is no capability flag to query. That is why
+      <strong>Emulate</strong> is the default for the browser voice — it realizes each
+      directive with the primitives the Web Speech API does expose, so
+      <code>data-ssml</code> content is audible today.
+    </p>
+    <p>
+      The three cloud services below <em>do</em> consume SSML natively. Supply an API key
+      and pick <strong>Send SSML</strong> to hear the reference rendering of your markup,
+      then switch to <strong>Emulate</strong> on the same voice to hear how close the
+      browser-side approximation gets. The exact document sent is shown in the Log tab
+      either way.
+    </p>
+
+    <div class="ref-table-wrap"><table class="ref-table">
+      <thead>
+        <tr><th>Service</th><th>Credentials</th><th>Word timing</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Google Cloud TTS</td>
+          <td>API key</td>
+          <td>Yes — <code>SSML_MARK</code> timepoints</td>
+          <td>Simplest of the three: audio and timings arrive in one response.</td>
+        </tr>
+        <tr>
+          <td>Amazon Polly</td>
+          <td>Access key + secret (SigV4)</td>
+          <td>Yes — speech marks, second request</td>
+          <td>Neural voices ignore <code>prosody pitch</code> and silently fall back to a
+              standard voice for <code>say-as interpret-as="characters"</code>. The tool
+              warns when it sends markup that will hit this.</td>
+        </tr>
+        <tr>
+          <td>Azure AI Speech</td>
+          <td>Resource key + region</td>
+          <td>No — sentence only</td>
+          <td>Word boundaries need the Speech SDK's websocket; the REST endpoint returns
+              audio alone.</td>
+        </tr>
+        <tr>
+          <td>ElevenLabs</td>
+          <td>API key</td>
+          <td>Yes — character alignment</td>
+          <td><strong>Partial SSML only.</strong> See below.</td>
+        </tr>
+      </tbody>
+    </table></div>
+
+    <h3>Partial SSML: ElevenLabs</h3>
+    <p>
+      ElevenLabs is not an SSML engine. It takes plain text with two inline
+      pronunciation tags — <code>&lt;break&gt;</code>, and
+      <code>&lt;phoneme&gt;</code> on the models that apply it — and has no
+      <code>sub</code>, <code>say-as</code>, or <code>prosody</code> at all.
+    </p>
+    <p>
+      So in <strong>Send SSML</strong> mode it gets a mixed rendering: the tags it
+      understands are passed through as markup, and the directives it cannot express
+      are emulated client-side before sending. The Sentences tab shows which is which,
+      per sentence. Which tags survive depends on the model, so changing the model in
+      the credentials dialog changes what is passed through:
+    </p>
+    <div class="ref-table-wrap"><table class="ref-table">
+      <thead><tr><th>Model</th><th><code>break</code></th><th><code>phoneme</code></th></tr></thead>
+      <tbody>
+        <tr><td><code>eleven_multilingual_v2</code> (default)</td><td>yes</td><td>no</td></tr>
+        <tr><td><code>eleven_flash_v2</code> (English only)</td><td>yes</td><td>yes</td></tr>
+        <tr><td><code>eleven_turbo_v2</code> (English only, deprecated)</td><td>yes</td><td>yes</td></tr>
+        <tr><td><code>eleven_v3</code></td><td>no</td><td>no</td></tr>
+      </tbody>
+    </table></div>
+    <p>
+      Nothing is lost when a tag is not passed through — it falls back to emulation.
+      Note the corner: no model takes both <code>&lt;phoneme&gt;</code> and
+      multilingual text. For pronunciation that has to hold across a whole item bank,
+      ElevenLabs' own pronunciation dictionaries are the durable mechanism.
+    </p>
+    <p>
+      Its timing data is character-level alignment rather than named marks, and that
+      maps back to the source in any delivery mode — so ElevenLabs is the one service
+      that highlights words in <strong>Emulate</strong> mode too.
+    </p>
+
+    <p>
+      Keys are held in <code>sessionStorage</code> and cleared when the tab closes,
+      unless you tick “Remember on this device”. They are sent only to the provider's own
+      endpoint. A key in a web page is readable by anyone who can open the page, so
+      restrict it: for Google, limit the key to the Text-to-Speech API; for AWS, use an
+      IAM user scoped to <code>polly:SynthesizeSpeech</code> and
+      <code>polly:DescribeVoices</code>, or short-lived STS credentials.
+    </p>
+
+    <h3>Known limits</h3>
+    <ul>
+      <li>On the browser voice, word highlighting depends on <code>boundary</code> events.
+        Chrome and Edge fire them for local voices; Safari and remote/network voices often
+        do not. It is disabled in <strong>Send SSML</strong> mode because the offsets would
+        point into markup.</li>
+      <li>On a cloud voice, word highlighting comes from timing marks, so it needs
+        <strong>Send SSML</strong> mode and a service that reports them (Google, Polly).</li>
+      <li>Cloud synthesis is billed per character. Each sentence is synthesized once and
+        cached for the session; changing the voice, mode, or text re-synthesizes.</li>
+      <li>Where a directive rewrites what is spoken (<code>sub</code>, <code>say-as</code>,
+        <code>phoneme</code>), the word highlight covers the whole rewritten span rather
+        than tracking inside it — there is no character correspondence to track.</li>
+      <li><code>phoneme</code> cannot be delivered faithfully without an SSML-capable engine.</li>
+      <li>Pause/resume behaviour varies by platform; the engine re-issues the current
+        utterance if a voice drops it on resume.</li>
+    </ul>
+
+    <hr class="dlg-rule">
+    <p class="colophon">
+      <strong>data-ssml Read Aloud Tool</strong>, version 1.0 ·
+      <a href="mailto:mhakkinen@ets.org">mhakkinen@ets.org</a><br>
+      Built on the
+      <a href="https://github.com/mhakkinen/data-ssmlToJson" target="_blank" rel="noopener">
+        data-ssmlToJson</a> reference library, whose parser and SSML serializer are
+      ported here and checked against the same test suite.
+    </p>
+  </div>
+</dialog>
+
+<dialog id="dlg-test">
+  <div class="dlg-head">
+    <h2>Self-test</h2>
+    <button type="button" class="ghost small" data-close>Close</button>
+  </div>
+  <div class="dlg-body">
+    <p class="hint">
+      Ports the parser and SSML-serializer test suite from
+      <code>data-ssmlToJson</code>, plus the emulation layer's own cases.
+    </p>
+    <div id="test-summary" class="test-summary"></div>
+    <div id="test-results" class="test-results"></div>
+  </div>
+</dialog>
+
+<script src="js/data-ssml-parser.js"></script>
+<script src="js/data-ssml-to-ssml.js"></script>
+<script src="js/ssml-emulate.js"></script>
+<script src="js/segmenter.js"></script>
+<script src="js/highlighter.js"></script>
+<script src="js/audio-player.js"></script>
+<script src="js/aws-sigv4.js"></script>
+<script src="js/tts-providers.js"></script>
+<script src="js/provider-google.js"></script>
+<script src="js/provider-azure.js"></script>
+<script src="js/provider-polly.js"></script>
+<script src="js/provider-elevenlabs.js"></script>
+<script src="js/tts-engine.js"></script>
+<script src="js/samples.js"></script>
+<script src="js/tests.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
