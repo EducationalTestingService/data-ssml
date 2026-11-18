@@ -1,6 +1,6 @@
 # data-ssml Read Aloud Tool
 
-**Version 1.0** · mhakkinen@ets.org
+**Version 1.0** · accessibility@ets.org (previously mhakkinen)
 
 A working TTS read-aloud tool that understands and consumes SSML encoded with the
 1EdTech [`data-ssml`](https://www.1edtech.org/standards/data-ssml) property
